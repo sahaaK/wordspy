@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordSpy - Find the Impostor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/TextPlugin.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #ec4899;
+            --accent: #f59e0b;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .float-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        .shake {
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        .typing-indicator {
+            display: inline-block;
+            width: 50px;
+            height: 20px;
+        }
+        
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #6b7280;
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: .5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .game-card {
+            transition: all 0.3s ease;
+        }
+        
+        .game-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .score-bounce {
+            animation: scoreBounce 0.6s ease-out;
+        }
+        
+        @keyframes scoreBounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen overflow-x-hidden">
+    <!-- Particles Container -->
+    <div id="particles-container" class="fixed inset-0 pointer-events-none z-0"></div>
+    
+    <!-- Main Container -->
+    <div id="app" class="relative z-10 min-h-screen flex flex-col items-center justify-center p-4">
+        
+        <!-- Start Screen -->
+        <div id="startScreen" class="text-center space-y-8 animate-fade-in">
+            <div class="space-y-4">
+                <h1 class="text-6xl md:text-8xl font-bold text-white mb-4 float-animation">
+                    <span class="inline-block bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">WordSpy</span>
+                </h1>
+                <p class="text-xl md:text-2xl text-white/80">Find the impostor among us!</p>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <button onclick="createRoom()" class="glass-card px-8 py-4 text-white font-semibold text-lg rounded-xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105">
+                    <i class="fas fa-plus mr-2"></i>Create Room
+                </button>
+                <button onclick="showJoinRoom()" class="glass-card px-8 py-4 text-white font-semibold text-lg rounded-xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Join Room
+                </button>
+            </div>
+            
+            <div class="mt-8">
+                <button onclick="showRules()" class="text-white/70 hover:text-white transition-colors">
+                    <i class="fas fa-book mr-2"></i>How to Play
+                </button>
+            </div>
+        </div>
+        
+        <!-- Join Room Screen -->
+        <div id="joinScreen" class="hidden text-center space-y-6">
+            <h2 class="text-4xl font-bold text-white mb-4">Join Room</h2>
+            <div class="space-y-4">
+                <input type="text" id="roomCodeInput" placeholder="Enter 6-digit room code" 
+                       class="px-6 py-3 text-xl text-center tracking-widest bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-white/50">
+                <br>
+                <input type="text" id="playerNameInput" placeholder="Your name" 
+                       class="px-6 py-3 text-xl bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-white/50">
+            </div>
+            <button onclick="joinRoom()" class="glass-card px-8 py-3 text-white font-semibold rounded-xl hover:bg-white/20 transition-all duration-300">
+                <i class="fas fa-play mr-2"></i>Join Game
+            </button>
+            <button onclick="showStartScreen()" class="text-white/70 hover:text-white ml-4">
+                <i class="fas fa-arrow-left mr-2"></i>Back
+            </button>
+        </div>
+        
+        <!-- Room Screen -->
+        <div id="roomScreen" class="hidden w-full max-w-6xl mx-auto">
+            <div class="glass-card rounded-2xl p-6 md:p-8 mb-6">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-3xl font-bold text-white">Room <span id="roomCode" class="text-yellow-400">XXXXXX</span></h2>
+                        <p class="text-white/70">Share this code with friends!</p>
+                    </div>
+                    <button onclick="leaveRoom()" class="text-white/70 hover:text-white transition-colors">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Leave
+                    </button>
+                </div>
+                
+                <div id="playersList" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <!-- Players will be populated here -->
+                </div>
+                
+                <div class="text-center">
+                    <button id="readyBtn" onclick="toggleReady()" 
+                            class="px-8 py-4 bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold rounded-xl hover:from-green-500 hover:to-blue-600 transition-all duration-300 transform hover:scale-105">
+                        <i class="fas fa-check mr-2"></i>Ready
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Game Screen -->
+        <div id="gameScreen" class="hidden w-full max-w-6xl mx-auto">
+            <div class="glass-card rounded-2xl p-6 md:p-8">
+                <div class="text-center mb-6">
+                    <h3 id="gameStatus" class="text-2xl font-bold text-white mb-2">Round 1 - Submit Your Word</h3>
+                    <p id="turnInfo" class="text-white/70">Your turn to submit</p>
+                </div>
+                
+                <!-- Topic Image -->
+                <div id="imageContainer" class="text-center mb-6">
+                    <img id="topicImage" src="" alt="Topic" class="mx-auto rounded-xl shadow-2xl max-w-md w-full">
+                    <p id="imageTopic" class="text-white/80 mt-2 text-lg"></p>
+                </div>
+                
+                <!-- Word Submission -->
+                <div id="wordSubmission" class="text-center space-y-4">
+                    <input type="text" id="wordInput" placeholder="Enter your word..." 
+                           class="px-6 py-3 text-xl bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-white/50">
+                    <button onclick="submitWord()" 
+                            class="glass-card px-8 py-3 text-white font-semibold rounded-xl hover:bg-white/20 transition-all duration-300">
+                        Submit Word
+                    </button>
+                </div>
+                
+                <!-- Submitted Words -->
+                <div id="submittedWords" class="mt-6">
+                    <h4 class="text-xl font-bold text-white mb-4">Submitted Words:</h4>
+                    <div id="wordsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <!-- Words will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Voting Screen -->
+        <div id="votingScreen" class="hidden w-full max-w-6xl mx-auto">
+            <div class="glass-card rounded-2xl p-6 md:p-8">
+                <div class="text-center mb-6">
+                    <h3 class="text-3xl font-bold text-white mb-2">Vote for the Impostor!</h3>
+                    <p class="text-white/70">Choose who you think is pretending</p>
+                </div>
+                
+                <div id="votePlayers" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                    <!-- Vote options will be populated here -->
+                </div>
+                
+                <div id="voteResults" class="hidden text-center">
+                    <h4 class="text-2xl font-bold text-white mb-4">Results</h4>
+                    <div id="resultsList" class="space-y-2 mb-6">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Rules Modal -->
+        <div id="rulesModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div class="glass-card rounded-2xl p-8 max-w-2xl max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-2xl font-bold text-white">How to Play</h3>
+                    <button onclick="closeRules()" class="text-white/70 hover:text-white">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                <div class="text-white/90 space-y-4">
+                    <p><strong>Objective:</strong> Find the impostor among the players!</p>
+                    <ol class="list-decimal list-inside space-y-2">
+                        <li>Players join a room with a code</li>
+                        <li>Everyone presses Ready to start</li>
+                        <li>All players see a topic image except the impostor</li>
+                        <li>Each player submits one word related to the image</li>
+                        <li>The impostor must pretend they saw the image</li>
+                        <li>After all words are submitted, vote for the impostor</li>
+                        <li>If the group identifies the impostor, they win!</li>
+                        <li>If the impostor remains hidden, they win!</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { 
+            getFirestore, 
+            collection, 
+            doc, 
+            setDoc, 
+            getDoc, 
+            onSnapshot, 
+            updateDoc, 
+            arrayUnion, 
+            arrayRemove,
+            query,
+            where,
+            getDocs,
+            deleteDoc
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { 
+            getDatabase, 
+            ref, 
+            set, 
+            push, 
+            onValue, 
+            update, 
+            remove 
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDESK1oQ1lcWphlzlyqprcMRMpx-CqGS7s",
+            authDomain: "wordspy-f7440.firebaseapp.com",
+            projectId: "wordspy-f7440",
+            storageBucket: "wordspy-f7440.firebasestorage.app",
+            messagingSenderId: 181466033426,
+            appId: "1:181466033426:web:a5fcd5f9ffde2baca817cb",
+            measurementId: "G-E5KEK1YFXH"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const rtdb = getDatabase(app);
+
+        // Game State
+        let currentRoom = null;
+        let playerId = null;
+        let playerName = null;
+        let isImpostor = false;
+        let currentRound = 1;
+        let gameTopics = [
+            { topic: "Football", image: "https://images.unsplash.com/photo-1551958219-acbc608c6377?w=400" },
+            { topic: "Movies", image: "https://images.unsplash.com/photo-1489599009749-c7f9319e2e1b?w=400" },
+            { topic: "Animals", image: "https://images.unsplash.com/photo-1546182990-dffeafbe841d?w=400" },
+            { topic: "Space", image: "https://images.unsplash.com/photo-1446776877081-d282a0f896e2?w=400" },
+            { topic: "Food", image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400" },
+            { topic: "Music", image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400" },
+            { topic: "Travel", image: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=400" },
+            { topic: "Technology", image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400" }
+        ];
+
+        // Generate random room code
+        function generateRoomCode() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        // Create room
+        window.createRoom = async function() {
+            const roomCode = generateRoomCode();
+            const roomRef = doc(db, 'rooms', roomCode);
+            
+            try {
+                await setDoc(roomRef, {
+                    code: roomCode,
+                    status: 'waiting',
+                    players: {},
+                    currentRound: 1,
+                    createdAt: new Date().toISOString()
+                });
+                
+                currentRoom = roomCode;
+                playerId = 'player_' + Date.now();
+                playerName = 'Player ' + Math.floor(Math.random() * 1000);
+                
+                await updateDoc(roomRef, {
+                    [`players.${playerId}`]: {
+                        name: playerName,
+                        ready: false,
+                        role: null
+                    }
+                });
+                
+                showRoomScreen();
+                listenToRoom();
+            } catch (error) {
+                console.error('Error creating room:', error);
+                alert('Error creating room. Please try again.');
+            }
+        };
+
+        // Show join room screen
+        window.showJoinRoom = function() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('joinScreen').classList.remove('hidden');
+        };
+
+        // Join room
+        window.joinRoom = async function() {
+            const roomCode = document.getElementById('roomCodeInput').value.toUpperCase();
+            const name = document.getElementById('playerNameInput').value.trim();
+            
+            if (!roomCode || !name) {
+                alert('Please enter room code and name');
+                return;
+            }
+            
+            const roomRef = doc(db, 'rooms', roomCode);
+            const roomDoc = await getDoc(roomRef);
+            
+            if (!roomDoc.exists()) {
+                alert('Room not found');
+                return;
+            }
+            
+            const roomData = roomDoc.data();
+            if (roomData.status !== 'waiting') {
+                alert('Game already in progress');
+                return;
+            }
+            
+            currentRoom = roomCode;
+            playerId = 'player_' + Date.now();
+            playerName = name;
+            
+            await updateDoc(roomRef, {
+                [`players.${playerId}`]: {
+                    name: name,
+                    ready: false,
+                    role: null
+                }
+            });
+            
+            showRoomScreen();
+            listenToRoom();
+        };
+
+        // Show start screen
+        window.showStartScreen = function() {
+            document.getElementById('joinScreen').classList.add('hidden');
+            document.getElementById('startScreen').classList.remove('hidden');
+        };
+
+        // Leave room
+        window.leaveRoom = async function() {
+            if (currentRoom) {
+                const roomRef = doc(db, 'rooms', currentRoom);
+                await updateDoc(roomRef, {
+                    [`players.${playerId}`]: deleteField()
+                });
+                
+                const roomDoc = await getDoc(roomRef);
+                if (roomDoc.exists() && Object.keys(roomDoc.data().players || {}).length === 0) {
+                    await deleteDoc(roomRef);
+                }
+            }
+            
+            currentRoom = null;
+            playerId = null;
+            playerName = null;
+            
+            document.getElementById('roomScreen').classList.add('hidden');
+            document.getElementById('startScreen').classList.remove('hidden');
+        };
+
+        // Toggle ready state
+        window.toggleReady = async function() {
+            const roomRef = doc(db, 'rooms', currentRoom);
+            const roomDoc = await getDoc(roomRef);
+            const playerData = roomDoc.data().players[playerId];
+            
+            await updateDoc(roomRef, {
+                [`players.${playerId}.ready`]: !playerData.ready
+            });
+        };
+
+        // Listen to room changes
+        function listenToRoom() {
+            const roomRef = doc(db, 'rooms', currentRoom);
+            onSnapshot(roomRef, (doc) => {
+                if (!doc.exists()) return;
+                
+                const roomData = doc.data();
+                updatePlayersList(roomData.players);
+                
+                // Check if all players are ready
+                const players = Object.values(roomData.players || {});
+                if (players.length >= 2 && players.every(p => p.ready)) {
+                    startGame();
+                }
+            });
+        }
+
+        // Update players list
+        function updatePlayersList(players) {
+            const container = document.getElementById('playersList');
+            container.innerHTML = '';
+            
+            Object.entries(players).forEach(([id, player]) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'glass-card p-4 rounded-xl text-center';
+                playerDiv.innerHTML = `
+                    <div class="text-white">
+                        <i class="fas fa-user text-2xl mb-2 ${player.ready ? 'text-green-400' : 'text-gray-400'}"></i>
+                        <p class="font-semibold">${player.name}</p>
+                        <p class="text-sm ${player.ready ? 'text-green-300' : 'text-gray-400'}">
+                            ${player.ready ? 'Ready' : 'Not Ready'}
+                        </p>
+                    </div>
+                `;
+                container.appendChild(playerDiv);
+            });
+        }
+
+        // Start game
+        async function startGame() {
+            const roomRef = doc(db, 'rooms', currentRoom);
+            const players = Object.keys((await getDoc(roomRef)).data().players || {});
+            
+            // Select impostor
+            const impostorId = players[Math.floor(Math.random() * players.length)];
+            
+            // Select random topic
+            const topic = gameTopics[Math.floor(Math.random() * gameTopics.length)];
+            
+            await updateDoc(roomRef, {
+                status: 'playing',
+                currentRound: 1,
+                currentPlayerIndex: 0,
+                gameData: {
+                    impostor: impostorId,
+                    topic: topic.topic,
+                    image: topic.image,
+                    submissions: {},
+                    votes: {},
+                    phase: 'submission'
+                }
+            });
+            
+            showGameScreen();
+            listenToGameState();
+        }
+
+        // Show game screen
+        function showGameScreen() {
+            document.getElementById('roomScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('hidden');
+        }
+
+        // Listen to game state
+        function listenToGameState() {
+            const roomRef = doc(db, 'rooms', currentRoom);
+            onSnapshot(roomRef, (doc) => {
+                if (!doc.exists()) return;
+                
+                const roomData = doc.data();
+                const gameData = roomData.gameData;
+                
+                // Update UI based on game state
+                updateGameUI(roomData);
+                
+                // Check if it's voting phase
+                if (gameData.phase === 'voting') {
+                    showVotingScreen();
+                }
+            });
+        }
+
+        // Update game UI
+        function updateGameUI(roomData) {
+            const gameData = roomData.gameData;
+            const players = roomData.players;
+            const playerIds = Object.keys(players);
+            const currentPlayerId = playerIds[gameData.currentPlayerIndex];
+            
+            // Update status
+            document.getElementById('gameStatus').textContent = `Round ${roomData.currentRound} - ${gameData.phase === 'submission' ? 'Submit Your Word' : 'Voting Phase'}`;
+            document.getElementById('turnInfo').textContent = currentPlayerId === playerId ? 'Your turn' : `${players[currentPlayerId].name}'s turn`;
+            
+            // Show/hide image based on role
+            if (gameData.impostor === playerId) {
+                document.getElementById('imageContainer').innerHTML = '<p class="text-2xl text-white/70">You are the impostor! No image shown.</p>';
+            } else {
+                document.getElementById('topicImage').src = gameData.image;
+                document.getElementById('imageTopic').textContent = gameData.topic;
+            }
+            
+            // Update submissions
+            const submissions = gameData.submissions || {};
+            const wordsList = document.getElementById('wordsList');
+            wordsList.innerHTML = '';
+            
+            Object.entries(submissions).forEach(([playerId, word]) => {
+                const wordDiv = document.createElement('div');
+                wordDiv.className = 'glass-card p-3 rounded-lg';
+                wordDiv.innerHTML = `
+                    <p class="text-white font-semibold">${players[playerId].name}</p>
+                    <p class="text-white/70">${word}</p>
+                `;
+                wordsList.appendChild(wordDiv);
+            });
+            
+            // Enable/disable word submission
+            const wordInput = document.getElementById('wordInput');
+            const submitBtn = document.querySelector('#wordSubmission button');
+            const hasSubmitted = gameData.submissions && gameData.submissions[playerId];
+            
+            wordInput.disabled = currentPlayerId !== playerId || hasSubmitted || gameData.phase !== 'submission';
+            submitBtn.disabled = wordInput.disabled;
+        }
+
+        // Submit word
+        window.submitWord = async function() {
+            const word = document.getElementById('wordInput').value.trim();
+            if (!word) return;
+            
+            const roomRef = doc(db, 'rooms', currentRoom);
+            const roomDoc = await getDoc(roomRef);
+            const gameData = roomDoc.data().gameData;
+            
+            // Add submission
+            await updateDoc(roomRef, {
+                [`gameData.submissions.${playerId}`]: word
+            });
+            
+            // Check if all players submitted
+            const players = Object.keys(roomDoc.data().players);
+            const submissions = gameData.submissions || {};
+            
+            if (Object.keys(submissions).length === players.length) {
+                // Move to voting phase
+                await updateDoc(roomRef, {
+                    'gameData.phase': 'voting'
+                });
+            } else {
+                // Move to next player
+                const nextIndex = (gameData.currentPlayerIndex + 1) % players.length;
+                await updateDoc(roomRef, {
+                    'gameData.currentPlayerIndex': nextIndex
+                });
+            }
+            
+            document.getElementById('wordInput').value = '';
+        };
+
+        // Show voting screen
+        function showVotingScreen() {
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('votingScreen').classList.remove('hidden');
+            
+            populateVoteOptions();
+        }
+
+        // Populate vote options
+        function populateVoteOptions() {
+            const container = document.getElementById('votePlayers');
+            container.innerHTML = '';
+            
+            getDoc(doc(db, 'rooms', currentRoom)).then((doc) => {
+                const players = doc.data().players;
+                
+                Object.entries(players).forEach(([id, player]) => {
+                    const voteDiv = document.createElement('div');
+                    voteDiv.className = 'glass-card p-4 rounded-xl text-center cursor-pointer transform hover:scale-105 transition-transform';
+                    voteDiv.onclick = () => submitVote(id);
+                    voteDiv.innerHTML = `
+                        <div class="text-white">
+                            <i class="fas fa-user text-3xl mb-2"></i>
+                            <p class="font-semibold">${player.name}</p>
+                        </div>
+                    `;
+                    container.appendChild(voteDiv);
+                });
+            });
+        }
+
+        // Submit vote
+        async function submitVote(targetId) {
+            const roomRef = doc(db, 'rooms', currentRoom);
+            await updateDoc(roomRef, {
+                [`gameData.votes.${playerId}`]: targetId
+            });
+            
+            // Check if all voted
+            const roomDoc = await getDoc(roomRef);
+            const gameData = roomDoc.data().gameData;
+            const players = Object.keys(roomDoc.data().players);
+            
+            if (Object.keys(gameData.votes || {}).length === players.length) {
+                // Calculate results
+                const votes = gameData.votes;
+                const voteCounts = {};
+                
+                Object.values(votes).forEach(vote => {
+                    voteCounts[vote] = (voteCounts[vote] || 0) + 1;
+                });
+                
+                const maxVotes = Math.max(...Object.values(voteCounts));
+                const mostVoted = Object.keys(voteCounts).find(id => voteCounts[id] === maxVotes);
+                
+                const isImpostorCaught = mostVoted === gameData.impostor;
+                
+                // Show results
+                showResults(isImpostorCaught, mostVoted, voteCounts, players, gameData.impostor);
+            }
+        }
+
+        // Show results
+        function showResults(isImpostorCaught, mostVoted, voteCounts, players, impostorId) {
+            const resultsDiv = document.getElementById('voteResults');
+            const resultsList = document.getElementById('resultsList');
+            
+            resultsDiv.classList.remove('hidden');
+            
+            resultsList.innerHTML = `
+                <div class="text-center">
+                    <h5 class="text-2xl font-bold text-white mb-4">
+                        ${isImpostorCaught ? '🎉 Group Wins!' : '😈 Impostor Wins!'}
+                    </h5>
+                    <p class="text-white/80 mb-4">
+                        The impostor was <strong>${players[impostorId].name}</strong>
+                    </p>
+                </div>
+            `;
+            
+            // Show vote counts
+            Object.entries(voteCounts).forEach(([playerId, count]) => {
+                const div = document.createElement('div');
+                div.className = 'glass-card p-3 rounded-lg';
+                div.innerHTML = `
+                    <p class="text-white">${players[playerId].name}: ${count} votes</p>
+                `;
+                resultsList.appendChild(div);
+            });
+            
+            // Add play again button
+            const playAgainBtn = document.createElement('button');
+            playAgainBtn.className = 'glass-card px-8 py-3 text-white font-semibold rounded-xl hover:bg-white/20 transition-all duration-300';
+            playAgainBtn.textContent = 'Play Again';
+            playAgainBtn.onclick = () => window.location.reload();
+            resultsList.appendChild(playAgainBtn);
+        }
+
+        // Show room screen
+        function showRoomScreen() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('joinScreen').classList.add('hidden');
+            document.getElementById('roomScreen').classList.remove('hidden');
+            document.getElementById('roomCode').textContent = currentRoom;
+        }
+
+        // Show rules
+        window.showRules = function() {
+            document.getElementById('rulesModal').classList.remove('hidden');
+        };
+
+        // Close rules
+        window.closeRules = function() {
+            document.getElementById('rulesModal').classList.add('hidden');
+        };
+
+        // Add GSAP animations
+        gsap.from("#startScreen h1", {
+            duration: 1,
+            y: 50,
+            opacity: 0,
+            ease: "power2.out"
+        });
+
+        gsap.from("#startScreen p", {
+            duration: 1,
+            y: 30,
+            opacity: 0,
+            delay: 0.3,
+            ease: "power2.out"
+        });
+
+        gsap.from("#startScreen button", {
+            duration: 0.8,
+            scale: 0,
+            opacity: 0,
+            delay: 0.6,
+            stagger: 0.2,
+            ease: "back.out(1.7)"
+        });
+
+        // Particle system
+        function createParticles() {
+            const container = document.getElementById('particles-container');
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b'];
+            
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                container.appendChild(particle);
+                
+                gsap.to(particle, {
+                    duration: Math.random() * 3 + 2,
+                    y: -100,
+                    opacity: 0,
+                    repeat: -1,
+                    delay: Math.random() * 2,
+                    ease: "power2.out"
+                });
+            }
+        }
+
+        createParticles();
+    </script>
+</body>
+</html>
